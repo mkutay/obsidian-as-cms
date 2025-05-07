@@ -1,3 +1,11 @@
+# ideas
+- plugin is a way to use obsidian as a cms, so you can upload to a db
+- frontmatter as the metadata of the post
+- the frontmatter schema is defined in the settings with optional fields -- type safety
+- a way to upload the images too
+
+---
+
 # Obsidian Sample Plugin
 
 This is a sample plugin for Obsidian (https://obsidian.md).
