@@ -1,40 +1,155 @@
-# ideas
-- plugin is a way to use obsidian as a cms, so you can upload to a db
-- frontmatter as the metadata of the post
-- the frontmatter schema is defined in the settings with optional fields -- type safety
-- a way to upload the images too
+# Obsidian Upload DB Plugin
 
+This plugin allows you to use Obsidian as a CMS by uploading your notes to a PostgreSQL database and images to S3-compatible storage (like MinIO) through a Next.js API.
+
+## Features
+
+- Upload the current note to your PostgreSQL database
+- Upload images referenced in the note to S3-compatible storage via a Next.js API
+- Parse frontmatter metadata and include it in the database
+- Support for cover and coverSquare images in frontmatter
+- Tags and keywords from frontmatter are stored in separate tables
+
+## Installation
+
+1. Download the latest release from this repository
+2. Extract the zip file to your Obsidian plugins folder: `.obsidian/plugins/obsidian-upload-db/`
+3. Enable the plugin in Obsidian's settings
+
+## Configuration
+
+The plugin requires the following settings to be configured:
+
+- **Postgres URL**: Connection URL to your PostgreSQL database
+- **API Upload URL**: URL to your Next.js API route for handling image uploads
+- **API Auth Token**: Authentication token for securing your API route
+- **Image URL Prefix**: Prefix path for uploaded images in the S3 bucket
+- **S3 Bucket Name**: Name of the S3 bucket to use for image storage
+
+### Optional settings if you want to use direct MinIO access:
+- **MinIO Endpoint**: The endpoint for your MinIO server
+- **MinIO Access Key**: Your MinIO access key
+- **MinIO Secret Key**: Your MinIO secret key
+
+## Setting up the Next.js API Route
+
+The plugin uses a Next.js API route to upload images to your S3-compatible storage. Here's how to set it up:
+
+1. Create a new API route in your Next.js project: `pages/api/upload.js` or `app/api/upload/route.ts`
+2. Use the example implementation provided in `examples/nextjs-upload-api.ts` 
+3. Install required dependencies:
+
+```
+npm install @aws-sdk/client-s3 formidable
+```
+
+4. Set up environment variables in your Next.js project:
+
+```
+MINIO_ENDPOINT=http://your-minio-server:9000
+MINIO_ACCESS_KEY=your-access-key
+MINIO_SECRET_KEY=your-secret-key
+API_AUTH_TOKEN=your-api-auth-token
+MINIO_PUBLIC_URL=http://your-minio-public-url
+```
+
+## Database Schema
+
+The plugin expects the following database schema:
+
+```sql
+CREATE TABLE posts (
+  slug TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  date TEXT NOT NULL,
+  excerpt TEXT,
+  locale TEXT DEFAULT 'en',
+  cover TEXT,
+  coverSquare TEXT,
+  lastModified TEXT NOT NULL,
+  shortened TEXT,
+  shortExcerpt TEXT
+);
+
+CREATE TABLE post_tags (
+  slug TEXT REFERENCES posts(slug) ON DELETE CASCADE,
+  tag TEXT NOT NULL,
+  PRIMARY KEY (slug, tag)
+);
+
+CREATE TABLE post_keywords (
+  slug TEXT REFERENCES posts(slug) ON DELETE CASCADE,
+  keyword TEXT NOT NULL,
+  PRIMARY KEY (slug, keyword)
+);
+```
+
+## Usage
+
+1. Open a note in Obsidian
+2. Use the ribbon icon or command palette to upload the note
+3. The note content and any referenced images will be uploaded
+4. A confirmation message will be shown upon successful upload
+
+## Frontmatter Support
+
+The plugin supports the following frontmatter fields:
+
+```yaml
 ---
+title: My Note Title
+description: A description of my note
+date: 2023-05-15
+excerpt: A longer excerpt for the note
+locale: en
+cover: path/to/cover-image.jpg
+coverSquare: path/to/square-cover.jpg
+tags:
+  - tag1
+  - tag2
+keywords:
+  - keyword1
+  - keyword2
+---
+```
 
-# Obsidian Sample Plugin
+## Image Support
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+The plugin handles images in various formats:
+- Standard Markdown: `![alt text](path/to/image.jpg)`
+- Obsidian syntax: `![[image.jpg]]`
+- HTML img tags: `<img src="path/to/image.jpg">`
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+Images can be:
+- Local files in your vault
+- Attachments in various Obsidian attachment folders
+- Already-uploaded images (will be skipped)
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Development
 
-## First time developing plugins?
+1. Clone this repository
+2. Run `npm install` to install dependencies
+3. Run `npm run dev` to start the development build
+4. Link or copy the output to your Obsidian plugins folder
 
-Quick starting guide for new plugin devs:
+## Building for Distribution
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+To build the plugin for distribution:
 
-## Releasing new releases
+```bash
+npm run build
+```
+
+This will create the following files in the project root:
+- `main.js`: The compiled plugin
+- `manifest.json`: The plugin manifest
+- `styles.css`: The plugin styles (if any)
+
+## License
+
+MIT
 
 - Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
 - Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
