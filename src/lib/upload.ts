@@ -7,8 +7,12 @@ import { CMSSettings } from "../settings";
 
 export async function upload(file: TFile, content: string, frontmatter: Record<string, unknown>, settings: CMSSettings) {
   try {
-    const post = createPost(frontmatter, content, file);
+    // Convert Obsidian image syntax to standard Markdown syntax
+    const convertedContent = convertObsidianImageSyntax(content);
     
+    const post = createPost(frontmatter, convertedContent, file);
+    
+    // Process images from the original content to ensure all images are found
     await processImages(content, file, settings);
     
     // Update cover and coverSquare in post object if they exist in frontmatter
@@ -35,6 +39,7 @@ export async function upload(file: TFile, content: string, frontmatter: Record<s
 export async function unpublish(file: TFile, settings: CMSSettings, content: string, frontmatter: Record<string, unknown>) {
   try {
     const slug = file.basename;
+    
     const post = createPost(frontmatter, content, file);
     
     await deleteFromDB(slug);
@@ -338,6 +343,54 @@ const getImageUrls = (content: string): string[] => {
     imageUrls.push(cleanUrl);
   }
   
+  // Next.js Image component: <Image src="url" />
+  const nextJsImgRegex = /<Image.*?src=["'](.*?)["'].*?>/g;
+  while ((match = nextJsImgRegex.exec(content)) !== null) {
+    const imageUrl = match[1];
+    // Remove query parameters or anchors if they exist
+    const cleanUrl = imageUrl.split('#')[0].split('?')[0];
+    imageUrls.push(cleanUrl);
+  }
+  
+  // Next.js Image component with imported images or object syntax
+  const nextJsImgObjRegex = /<Image.*?src=\{(.*?)\}.*?>/g;
+  while ((match = nextJsImgObjRegex.exec(content)) !== null) {
+    // This might be a reference to an imported image or an object
+    // We'll extract paths that look like file paths
+    const objContent = match[1];
+    const pathMatch = objContent.match(/(["'])(\/[^"']+?)\1/);
+    if (pathMatch) {
+      imageUrls.push(pathMatch[2]);
+    }
+  }
+  
   // Remove duplicates
   return [...new Set(imageUrls)];
 };
+
+/**
+ * Converts Obsidian-specific image syntax (![[image.jpg]]) to standard Markdown syntax (![image.jpg](image.jpg))
+ * 
+ * @param content The markdown content to process
+ * @returns The content with converted image syntax
+ */
+export function convertObsidianImageSyntax(content: string): string {
+  // Replace ![[image.jpg]] with ![image.jpg](image.jpg)
+  return content.replace(/!\[\[(.*?)\]\]/g, (match, imagePath) => {
+    // Remove any pipe and additional text for display (like ![[image.jpg|alt text]])
+    const cleanPath = imagePath.split('|')[0].trim().replace(/\s+/g, '-');
+    
+    // Use the filename as alt text or the provided alt text after the pipe
+    const altText = imagePath.includes('|') 
+      ? imagePath.split('|')[1].trim() 
+      : cleanPath.split('/').pop() || cleanPath;
+    
+    return `![${altText}](/${cleanPath})`;
+  });
+}
+
+// For testing/debugging purposes - can be removed in production
+// Example:
+// const test = "Here is an image: ![[folder/image.jpg]] and another ![[pic.png|Custom Alt]]";
+// console.log(convertObsidianImageSyntax(test));
+// Result: "Here is an image: ![image.jpg](folder/image.jpg) and another ![Custom Alt](pic.png)"

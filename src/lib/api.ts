@@ -22,15 +22,18 @@ export async function uploadImageViaApi(
     
     // Manual construction of multipart/form-data since FormData is not directly supported
     let body = '';
+
+    const name = fileName.replace(/\s+/g, '-');
+    console.log(name);
     
     // Add the filename field
     body += `--${boundary}\r\n`;
     body += `Content-Disposition: form-data; name="url"\r\n\r\n`;
-    body += `${fileName}\r\n`;
+    body += `${name}\r\n`;
     
     // Add the binary file data
     body += `--${boundary}\r\n`;
-    body += `Content-Disposition: form-data; name="image"; filename="${fileName}"\r\n`;
+    body += `Content-Disposition: form-data; name="image"; filename="${name}"\r\n`;
     body += `Content-Type: ${contentType}\r\n\r\n`;
 
     // Convert text part to ArrayBuffer
