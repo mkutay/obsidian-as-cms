@@ -54,6 +54,12 @@ function createPost(frontmatter: Record<string, unknown>, content: string, file:
     return typeof value === 'string' ? value : defaultValue;
   };
 
+  const getDateValue = (value: unknown, defaultValue: string) => {
+    if (value instanceof Date) return value.toISOString();
+    if (value) return new Date(value as string).toISOString();
+    return defaultValue;
+  };
+
   const contentWithoutFrontmatter = content.replace(/---[\s\S]*?---/, "").trim();
   
   const description = contentWithoutFrontmatter.slice(0, 150) + "...";
@@ -70,12 +76,12 @@ function createPost(frontmatter: Record<string, unknown>, content: string, file:
     title: getStringValue(frontmatter.title, file.basename),
     content,
     description: getStringValue(frontmatter.description, description),
-    date: getStringValue(frontmatter.date, new Date().toISOString()),
+    date: getDateValue(frontmatter.date, new Date().toISOString()),
     excerpt: getStringValue(frontmatter.excerpt, contentWithoutFrontmatter.slice(0, 300) + "..."),
     locale: getStringValue(frontmatter.locale, "en_UK"),
     cover: typeof frontmatter.cover === 'string' ? frontmatter.cover : null,
     coverSquare: typeof frontmatter.coverSquare === 'string' ? frontmatter.coverSquare : null,
-    lastModified: getStringValue(frontmatter.lastModified, new Date(file.stat.mtime).toISOString()),
+    lastModified: getDateValue(frontmatter.lastModified, new Date(file.stat.mtime).toISOString()),
     shortened: getStringValue(frontmatter.shortened, slug),
     shortExcerpt: getStringValue(frontmatter.shortExcerpt, contentWithoutFrontmatter.slice(0, 150) + "..."),
     tags: getStringArray(frontmatter.tags),
@@ -254,6 +260,7 @@ const insertIntoDB = async ({ post }: { post: Post }) => {
       content = ${post.content},
       title = ${post.title},
       description = ${post.description},
+      date = ${post.date},
       excerpt = ${post.excerpt},
       locale = ${post.locale},
       cover = ${post.cover},
