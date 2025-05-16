@@ -3,7 +3,7 @@ import matter from 'gray-matter';
 
 import { CMSSettings, DEFAULT_SETTINGS, CMSSettingTab } from './settings';
 import { initialiseSql } from './lib/postgres';
-import { upload } from './lib/upload';
+import { upload, unpublish } from './lib/upload';
 
 export default class CMSPlugin extends Plugin {
 	settings: CMSSettings;
@@ -13,13 +13,19 @@ export default class CMSPlugin extends Plugin {
 		
 		initialiseSql(this.settings);
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('upload-cloud', 'Upload to DB', async (evt: MouseEvent) => {
+		// This creates an icon in the left ribbon for upload
+		const uploadRibbonIconEl = this.addRibbonIcon('upload-cloud', 'Upload to DB', async (evt: MouseEvent) => {
 			await this.uploadCurrentDocument();
 		});
-		ribbonIconEl.addClass('cms-upload-ribbon-class');
+		uploadRibbonIconEl.addClass('cms-upload-ribbon-class');
 
-		// This adds a simple command that can be triggered anywhere
+		// Add a ribbon icon for unpublish
+		const unpublishRibbonIconEl = this.addRibbonIcon('trash-2', 'Unpublish from DB', async (evt: MouseEvent) => {
+			await this.unpublishCurrentDocument();
+		});
+		unpublishRibbonIconEl.addClass('cms-unpublish-ribbon-class');
+
+		// This adds a simple command for upload
 		this.addCommand({
 			id: 'upload-current-note',
 			name: 'Upload current note to DB',
@@ -28,17 +34,17 @@ export default class CMSPlugin extends Plugin {
 			},
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new CMSSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
+			// Add command for unpublish
+		this.addCommand({
+			id: 'unpublish-current-note',
+			name: 'Unpublish current note from DB',
+			callback: async () => {
+				await this.unpublishCurrentDocument();
+			},
 		});
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		// This adds a settings tab so the user can configure various aspects of the plugin
+		this.addSettingTab(new CMSSettingTab(this.app, this));
 	}
 
 	onunload() { }
@@ -86,6 +92,42 @@ export default class CMSPlugin extends Plugin {
 		} catch (error) {
 			new Notice(`Error uploading: ${error instanceof Error ? error.message : String(error)}`);
 			console.error('Upload error:', error);
+		}
+	}
+
+	async unpublishCurrentDocument() {
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!activeView) {
+			new Notice('No active markdown view');
+			return;
+		}
+
+		const file = activeView.file;
+
+		if (!file) {
+			new Notice('No file is open');
+			return;
+		}
+
+		try {
+			const notice = new Notice("Unpublishing from DB...", 0);
+
+			const content = await this.app.vault.read(file);
+			const { data, content: contentWithoutFrontmatter } = matter(content);
+			
+			const result = await unpublish(file, this.settings, contentWithoutFrontmatter, data);
+			
+			// Remove the processing notice and show the result
+			notice.hide();
+			
+			if (result.success) {
+				new Notice(result.message);
+			} else {
+				new Notice(`Unpublish failed: ${result.message}`);
+			}
+		} catch (error) {
+			new Notice(`Error unpublishing: ${error instanceof Error ? error.message : String(error)}`);
+			console.error('Unpublish error:', error);
 		}
 	}
 }

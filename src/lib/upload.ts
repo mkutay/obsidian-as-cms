@@ -21,13 +21,29 @@ export async function upload(file: TFile, content: string, frontmatter: Record<s
     }
     
     // Insert into database
-    await insertIntoPosts({ post });
+    await insertIntoDB({ post });
 
     await revalidate(post, settings);
     
     return { success: true, message: "Note uploaded successfully!" };
   } catch (error) {
     console.error("Error uploading note:", error);
+    return { success: false, message: `Error: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export async function unpublish(file: TFile, settings: CMSSettings, content: string, frontmatter: Record<string, unknown>) {
+  try {
+    const slug = file.basename;
+    const post = createPost(frontmatter, content, file);
+    
+    await deleteFromDB(slug);
+    
+    await revalidate(post, settings);
+    
+    return { success: true, message: "Note unpublished successfully!" };
+  } catch (error) {
+    console.error("Error unpublishing note:", error);
     return { success: false, message: `Error: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -104,13 +120,10 @@ async function uploadLocalImage(relativeImagePath: string, currentFile: TFile, s
       const ext = imageFile.extension.toLowerCase();
       const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
       
-      // Create a file name for the upload
-      const fileName = imageFile.basename + '.' + imageFile.extension;
-      
       // Upload the image via API instead of direct Minio upload
       const uploadedUrl = await uploadImageViaApi(
         settings,
-        fileName,
+        relativeImagePath,
         arrayBuffer,
         contentType
       );
@@ -212,13 +225,10 @@ async function uploadFrontmatterImage(imagePath: string, currentFile: TFile, set
         const ext = imageFile.extension.toLowerCase();
         const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
         
-        // Create a file name for the upload
-        const fileName = imageFile.basename + '.' + imageFile.extension;
-        
         // Upload the image via API instead of direct Minio upload
         const uploadedUrl = await uploadImageViaApi(
           settings,
-          fileName,
+          imagePath,
           arrayBuffer,
           contentType
         );
@@ -234,7 +244,7 @@ async function uploadFrontmatterImage(imagePath: string, currentFile: TFile, set
   }
 }
 
-const insertIntoPosts = async ({ post }: { post: Post }) => {
+const insertIntoDB = async ({ post }: { post: Post }) => {
   const sql = getSql();
   
   await sql`
@@ -272,6 +282,22 @@ const insertIntoPosts = async ({ post }: { post: Post }) => {
       ON CONFLICT (slug, keyword) DO NOTHING;
     `
   }
+
+  await sql`
+    INSERT INTO views (slug, count)
+    VALUES (${post.slug}, 0)
+    ON CONFLICT (slug) DO NOTHING;
+  `;
+}
+
+const deleteFromDB = async (slug: string) => {
+  const sql = getSql();
+  
+  await sql`DELETE FROM post_tags WHERE slug = ${slug}`;
+  await sql`DELETE FROM post_keywords WHERE slug = ${slug}`;
+  
+  // Then delete the post itself
+  await sql`DELETE FROM posts WHERE slug = ${slug}`;
 }
 
 const getImageUrls = (content: string): string[] => {

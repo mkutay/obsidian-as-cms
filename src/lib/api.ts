@@ -18,8 +18,6 @@ export async function uploadImageViaApi(
   contentType: string
 ): Promise<string | null> {
   try {
-    console.log('Uploading image:', fileName);
-    
     const boundary = `----WebKitFormBoundary${Math.random().toString(16).slice(2)}`;
     
     // Manual construction of multipart/form-data since FormData is not directly supported
@@ -34,7 +32,7 @@ export async function uploadImageViaApi(
     body += `--${boundary}\r\n`;
     body += `Content-Disposition: form-data; name="image"; filename="${fileName}"\r\n`;
     body += `Content-Type: ${contentType}\r\n\r\n`;
-    
+
     // Convert text part to ArrayBuffer
     const textEncoder = new TextEncoder();
     const textPart = textEncoder.encode(body);
@@ -48,7 +46,7 @@ export async function uploadImageViaApi(
     combinedBuffer.set(textPart, 0);
     combinedBuffer.set(new Uint8Array(buffer), textPart.length);
     combinedBuffer.set(footerPart, textPart.length + buffer.byteLength);
-    
+
     // Use Obsidian's requestUrl which handles CORS properly
     const response = await requestUrl({
       url: settings.apiUploadUrl,
@@ -66,7 +64,6 @@ export async function uploadImageViaApi(
     }
     
     const data = response.json;
-    console.log('API Upload response:', data);
     
     return data.url || null;
   } catch (error) {
@@ -80,8 +77,6 @@ export async function revalidate(
   settings: CMSSettings,
 ): Promise<string | null> {
   try {
-    console.log('Uploading image:', post.slug);
-    
     const boundary = `----WebKitFormBoundary${Math.random().toString(16).slice(2)}`;
     
     // Manual construction of multipart/form-data since FormData is not directly supported
@@ -123,7 +118,6 @@ export async function revalidate(
     }
     
     const data = response.json;
-    console.log('API revalidation response:', data);
     
     return data.url || null;
   } catch (error) {
