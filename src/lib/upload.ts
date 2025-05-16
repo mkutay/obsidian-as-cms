@@ -77,13 +77,13 @@ function createPost(frontmatter: Record<string, unknown>, content: string, file:
     content,
     description: getStringValue(frontmatter.description, description),
     date: getDateValue(frontmatter.date, new Date().toISOString()),
-    excerpt: getStringValue(frontmatter.excerpt, contentWithoutFrontmatter.slice(0, 300) + "..."),
+    excerpt: getStringValue(frontmatter.excerpt, ''),
     locale: getStringValue(frontmatter.locale, "en_UK"),
     cover: typeof frontmatter.cover === 'string' ? frontmatter.cover : null,
     coverSquare: typeof frontmatter.coverSquare === 'string' ? frontmatter.coverSquare : null,
     lastModified: getDateValue(frontmatter.lastModified, new Date(file.stat.mtime).toISOString()),
     shortened: getStringValue(frontmatter.shortened, slug),
-    shortExcerpt: getStringValue(frontmatter.shortExcerpt, contentWithoutFrontmatter.slice(0, 150) + "..."),
+    shortExcerpt: getStringValue(frontmatter.shortExcerpt, ''),
     tags: getStringArray(frontmatter.tags),
     keywords: getStringArray(frontmatter.keywords)
   };
