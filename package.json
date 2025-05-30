@@ -1,16 +1,8 @@
 {
 	"name": "obsidian-as-cms",
 	"version": "1.0.0",
-	"description": "This is a plugin for Obsidian that allows you to upload your notes to your DB and use Obsidian as a hacky CMS.",
-	"main": "main.js",
-	"scripts": {
-		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
-	},
-	"keywords": [],
 	"author": "",
-	"license": "MIT",
+	"main": "main.js",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",
@@ -21,9 +13,12 @@
 		"tslib": "2.4.0",
 		"typescript": "4.7.4"
 	},
-	"dependencies": {
-		"gray-matter": "^4.0.3",
-		"minio": "^8.0.5",
-		"postgres": "^3.4.5"
+	"description": "This is a plugin for Obsidian that allows you to upload your notes to your DB and use Obsidian as a hacky CMS.",
+	"keywords": [],
+	"license": "MIT",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	}
 }

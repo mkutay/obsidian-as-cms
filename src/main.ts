@@ -1,17 +1,14 @@
 import { MarkdownView, Notice, Plugin } from 'obsidian';
-import matter from 'gray-matter';
 
 import { CMSSettings, DEFAULT_SETTINGS, CMSSettingTab } from './settings';
-import { initialiseSql } from './lib/postgres';
-import { upload, unpublish } from './lib/upload';
+import { upload } from './lib/upload';
+import { unpublish } from './lib/unpublish';
 
 export default class CMSPlugin extends Plugin {
 	settings: CMSSettings;
 
 	async onload() {
 		await this.loadSettings();
-		
-		initialiseSql(this.settings);
 
 		// This creates an icon in the left ribbon for upload
 		const uploadRibbonIconEl = this.addRibbonIcon('upload-cloud', 'Upload to DB', async (evt: MouseEvent) => {
@@ -71,27 +68,21 @@ export default class CMSPlugin extends Plugin {
 			return;
 		}
 
-		try {
-			const content = await this.app.vault.read(file);
-			const { data, content: contentWithoutFrontmatter } = matter(content);
+		const content = await this.app.vault.read(file);
+		const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
-			// Show processing notice
-			const notice = new Notice("Uploading to CMS...", 0);
-			
-			// Upload the note
-			const result = await upload(file, contentWithoutFrontmatter, data, this.settings);
-			
-			// Remove the processing notice and show the result
-			notice.hide();
-			
-			if (result.success) {
-				new Notice(result.message);
-			} else {
-				new Notice(`Upload failed: ${result.message}`);
-			}
-		} catch (error) {
-			new Notice(`Error uploading: ${error instanceof Error ? error.message : String(error)}`);
-			console.error('Upload error:', error);
+		// Show processing notice
+		const notice = new Notice("Uploading to CMS...", 0);
+		
+		const result = await upload(file, content, this.settings, frontmatter);
+		
+		// Remove the processing notice and show the result
+		notice.hide();
+		
+		if (result.success) {
+			new Notice(result.message);
+		} else {
+			new Notice(`Upload failed: ${result.message}`);
 		}
 	}
 
@@ -113,9 +104,8 @@ export default class CMSPlugin extends Plugin {
 			const notice = new Notice("Unpublishing from DB...", 0);
 
 			const content = await this.app.vault.read(file);
-			const { data, content: contentWithoutFrontmatter } = matter(content);
 			
-			const result = await unpublish(file, this.settings, contentWithoutFrontmatter, data);
+			const result = await unpublish(file, this.settings, content);
 			
 			// Remove the processing notice and show the result
 			notice.hide();

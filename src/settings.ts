@@ -3,16 +3,14 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 import CMSPlugin from './main';
 
 export interface CMSSettings {
-	postgresUrl: string;
 	apiUploadUrl: string;
-	apiRevalidateUrl: string;
+	apiUnpublishUrl: string;
 	apiAuthToken: string;
 }
 
 export const DEFAULT_SETTINGS: CMSSettings = {
-	postgresUrl: 'postgres://localhost:5432/postgres',
-	apiUploadUrl: 'http://localhost:3000/api/uploadImage',
-	apiRevalidateUrl: 'http://localhost:3000/api/revalidate',
+	apiUploadUrl: 'http://localhost:3000/api/upload',
+	apiUnpublishUrl: 'http://localhost:3000/api/unpublish',
 	apiAuthToken: 'your-auth-token',
 };
 
@@ -31,19 +29,8 @@ export class CMSSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Postgres URL')
-			.setDesc('URL for the PostgreSQL database.')
-			.addText(text => text
-				.setPlaceholder(DEFAULT_SETTINGS.postgresUrl)
-				.setValue(settings.postgresUrl)
-				.onChange(async (value) => {
-					settings.postgresUrl = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
 			.setName('API Upload URL')
-			.setDesc('The URL of your API route for handling image uploads.')
+			.setDesc('The URL of your API route for handling uploads.')
 			.addText(text => text
 				.setPlaceholder(DEFAULT_SETTINGS.apiUploadUrl)
 				.setValue(settings.apiUploadUrl)
@@ -53,13 +40,13 @@ export class CMSSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('API Revalidation URL')
-			.setDesc('The URL of your API route for handling revalidation.')
+			.setName('API Unpublish URL')
+			.setDesc('The URL of your API route for handling unpublishing.')
 			.addText(text => text
-				.setPlaceholder(DEFAULT_SETTINGS.apiRevalidateUrl)
-				.setValue(settings.apiRevalidateUrl)
+				.setPlaceholder(DEFAULT_SETTINGS.apiUnpublishUrl)
+				.setValue(settings.apiUnpublishUrl)
 				.onChange(async (value) => {
-					settings.apiRevalidateUrl = value;
+					settings.apiUnpublishUrl = value;
 					await this.plugin.saveSettings();
 				}));
 
