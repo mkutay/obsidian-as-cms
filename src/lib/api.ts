@@ -30,7 +30,8 @@ export async function uploadAPI(
   parts.push(slugHeader);
   
   for (const image of images) {
-    const name = image.fileName.replace(/\s+/g, '-');
+    // const name = encodeURIComponent(image.fileName);
+    const name = image.fileName;
     
     // Image header
     const imageHeader = textEncoder.encode(

@@ -12,7 +12,7 @@ export async function upload(file: TFile, content: string, settings: CMSSettings
 
     const images = await processImages(convertedContent, file, coverImage, coverSquareImage);
 
-    await uploadAPI(settings, images, content, file.basename);
+    await uploadAPI(settings, images, convertedContent, file.basename);
 
     return { success: true, message: "Note uploaded successfully!" };
   } catch (error) {
@@ -23,9 +23,11 @@ export async function upload(file: TFile, content: string, settings: CMSSettings
 
 async function processImages(content: string, file: TFile, coverImage: string | null, coverSquareImage: string | null) {
   const imageUrls = getImageUrls(content);
+
   if (coverImage) {
     imageUrls.push(coverImage);
   }
+
   if (coverSquareImage) {
     imageUrls.push(coverSquareImage);
   }
@@ -105,7 +107,7 @@ function findImage(relativePath: string, vault: Vault, currentFile: TFile) {
 }
 
 const getImageUrls = (content: string): string[] => {
-  const imageUrls: string[] = [];
+  const imageUrls = new Set<string>();
   
   // Standard Markdown image syntax: ![alt](url)
   const standardImgRegex = /!\[(.*?)\]\((.*?)\)/g;
@@ -114,7 +116,7 @@ const getImageUrls = (content: string): string[] => {
     const imageUrl = match[2];
     // Remove query parameters or anchors if they exist
     const cleanUrl = imageUrl.split('#')[0].split('?')[0];
-    imageUrls.push(cleanUrl);
+    imageUrls.add(cleanUrl);
   } 
   
   // Obsidian's specific image embedding syntax: ![[image.jpg]]
@@ -123,41 +125,51 @@ const getImageUrls = (content: string): string[] => {
     const imageUrl = match[1];
     // Remove query parameters or anchors if they exist
     const cleanUrl = imageUrl.split('#')[0].split('?')[0];
-    imageUrls.push(cleanUrl);
+    imageUrls.add(cleanUrl);
   }
   
   // HTML image tags: <img src="url" />
-  const htmlImgRegex = /<img.*?src=["'](.*?)["'].*?>/g;
+  const htmlImgRegex = /<img.*?src=["'](.*?)["'].*?>/gi;
   while ((match = htmlImgRegex.exec(content)) !== null) {
     const imageUrl = match[1];
     // Remove query parameters or anchors if they exist
     const cleanUrl = imageUrl.split('#')[0].split('?')[0];
-    imageUrls.push(cleanUrl);
+    imageUrls.add(cleanUrl);
   }
   
-  // Next.js Image component: <Image src="url" />
-  const nextJsImgRegex = /<Image.*?src=["'](.*?)["'].*?>/g;
-  while ((match = nextJsImgRegex.exec(content)) !== null) {
-    const imageUrl = match[1];
-    // Remove query parameters or anchors if they exist
-    const cleanUrl = imageUrl.split('#')[0].split('?')[0];
-    imageUrls.push(cleanUrl);
-  }
-  
-  // Next.js Image component with imported images or object syntax
-  const nextJsImgObjRegex = /<Image.*?src=\{(.*?)\}.*?>/g;
-  while ((match = nextJsImgObjRegex.exec(content)) !== null) {
-    // This might be a reference to an imported image or an object
-    // We'll extract paths that look like file paths
-    const objContent = match[1];
-    const pathMatch = objContent.match(/(["'])(\/[^"']+?)\1/);
-    if (pathMatch) {
-      imageUrls.push(pathMatch[2]);
+  // Image component pattern that handles various prop orders and formats
+  const imageComponentRegex = /<Image[^>]*?(?:src=["']([^"']+)["']|src=\{([^}]+)\})[^>]*>/gi;
+  let componentMatch;
+  while ((componentMatch = imageComponentRegex.exec(content)) !== null) {
+    const stringUrl = componentMatch[1]; // quoted string URL
+    const objectUrl = componentMatch[2]; // object/variable URL
+    
+    if (stringUrl) {
+      const cleanUrl = stringUrl.split('#')[0].split('?')[0];
+      imageUrls.add(cleanUrl);
+    } else if (objectUrl) {
+      // Try to extract filename from object notation
+      const filenameMatch = objectUrl.match(/([^/\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff))/i);
+      if (filenameMatch) {
+        imageUrls.add(filenameMatch[1]);
+      }
     }
   }
   
-  // Remove duplicates
-  return [...new Set(imageUrls)];
+  // Find any remaining image files by extension (fallback for other patterns)
+  // Only add if not already found by other patterns
+  const attachmentRegex = /([^/\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff))/gi;
+  let attachmentMatch;
+  while ((attachmentMatch = attachmentRegex.exec(content)) !== null) {
+    const filename = attachmentMatch[1];
+    // Only add if it's not already in our set
+    if (!imageUrls.has(filename)) {
+      imageUrls.add(filename);
+    }
+  }
+  
+  // Convert Set back to array
+  return Array.from(imageUrls);
 };
 
 /**
