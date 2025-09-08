@@ -24,6 +24,8 @@ export async function upload(file: TFile, content: string, settings: CMSSettings
 async function processImages(content: string, file: TFile, coverImage: string | null, coverSquareImage: string | null) {
   const imageUrls = getImageUrls(content);
 
+  console.log(imageUrls)
+
   if (coverImage) {
     imageUrls.push(coverImage);
   }
@@ -110,66 +112,74 @@ const getImageUrls = (content: string): string[] => {
   const imageUrls = new Set<string>();
   
   // Standard Markdown image syntax: ![alt](url)
-  const standardImgRegex = /!\[(.*?)\]\((.*?)\)/g;
-  let match;
-  while ((match = standardImgRegex.exec(content)) !== null) {
-    const imageUrl = match[2];
-    // Remove query parameters or anchors if they exist
-    const cleanUrl = imageUrl.split('#')[0].split('?')[0];
-    imageUrls.add(cleanUrl);
-  } 
+  const standardMatches = content.matchAll(/!\[.*?\]\(([^)]+)\)/g);
+  for (const match of standardMatches) {
+    const imageUrl = match[1].trim();
+    if (imageUrl) {
+      const cleanUrl = imageUrl.split('#')[0].split('?')[0];
+      imageUrls.add(cleanUrl);
+    }
+  }
   
   // Obsidian's specific image embedding syntax: ![[image.jpg]]
-  const obsidianImgRegex = /!\[\[(.*?)\]\]/g;
-  while ((match = obsidianImgRegex.exec(content)) !== null) {
-    const imageUrl = match[1];
-    // Remove query parameters or anchors if they exist
-    const cleanUrl = imageUrl.split('#')[0].split('?')[0];
-    imageUrls.add(cleanUrl);
+  const obsidianMatches = content.matchAll(/!\[\[([^\]]+)\]\]/g);
+  for (const match of obsidianMatches) {
+    const imageUrl = match[1].trim();
+    if (imageUrl) {
+      const cleanUrl = imageUrl.split('#')[0].split('?')[0];
+      imageUrls.add(cleanUrl);
+    }
   }
   
   // HTML image tags: <img src="url" />
-  const htmlImgRegex = /<img.*?src=["'](.*?)["'].*?>/gi;
-  while ((match = htmlImgRegex.exec(content)) !== null) {
-    const imageUrl = match[1];
-    // Remove query parameters or anchors if they exist
-    const cleanUrl = imageUrl.split('#')[0].split('?')[0];
-    imageUrls.add(cleanUrl);
+  const htmlMatches = content.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
+  for (const match of htmlMatches) {
+    const imageUrl = match[1].trim();
+    if (imageUrl) {
+      const cleanUrl = imageUrl.split('#')[0].split('?')[0];
+      imageUrls.add(cleanUrl);
+    }
   }
   
-  // Image component pattern that handles various prop orders and formats
-  const imageComponentRegex = /<Image[^>]*?(?:src=["']([^"']+)["']|src=\{([^}]+)\})[^>]*>/gi;
-  let componentMatch;
-  while ((componentMatch = imageComponentRegex.exec(content)) !== null) {
-    const stringUrl = componentMatch[1]; // quoted string URL
-    const objectUrl = componentMatch[2]; // object/variable URL
+  // React/JSX Image component: <Image src="url" /> or <Image src={variable} />
+  const componentMatches = content.matchAll(
+    /<Image[^>]+src=(?:["']([^"']+)["']|\{([^}]+)\})[^>]*>/gi
+  );
+  for (const match of componentMatches) {
+    const stringUrl = match[1]; // quoted string URL
+    const objectUrl = match[2]; // object/variable URL
     
-    if (stringUrl) {
-      const cleanUrl = stringUrl.split('#')[0].split('?')[0];
+    if (stringUrl && stringUrl.trim()) {
+      const cleanUrl = stringUrl.trim().split('#')[0].split('?')[0];
       imageUrls.add(cleanUrl);
-    } else if (objectUrl) {
-      // Try to extract filename from object notation
-      const filenameMatch = objectUrl.match(/([^/\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff))/i);
-      if (filenameMatch) {
-        imageUrls.add(filenameMatch[1]);
+    } else if (objectUrl && objectUrl.trim()) {
+      // For object URLs, try to extract if it's a simple string or filename
+      const trimmed = objectUrl.trim();
+      // Handle cases like src={"/path/image.jpg"} or src={'image.jpg'}
+      const quotedMatch = trimmed.match(/^["']([^"']+)["']$/);
+      if (quotedMatch) {
+        const cleanUrl = quotedMatch[1].split('#')[0].split('?')[0];
+        imageUrls.add(cleanUrl);
+      }
+      // Handle simple variable names that might be filenames
+      else if (/^[a-zA-Z_$][a-zA-Z0-9_$]*\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff)$/i.test(trimmed)) {
+        imageUrls.add(trimmed);
       }
     }
   }
   
-  // Find any remaining image files by extension (fallback for other patterns)
-  // Only add if not already found by other patterns
-  const attachmentRegex = /([^/\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff))/gi;
-  let attachmentMatch;
-  while ((attachmentMatch = attachmentRegex.exec(content)) !== null) {
-    const filename = attachmentMatch[1];
-    // Only add if it's not already in our set
-    if (!imageUrls.has(filename)) {
-      imageUrls.add(filename);
+  // Reference-style markdown images: [alt]: url
+  const refMatches = content.matchAll(/^\s*\[([^\]]+)\]:\s*([^\s]+)/gm);
+  for (const match of refMatches) {
+    const url = match[2].trim();
+    // Check if it's likely an image URL
+    if (url && /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff)(\?[^#]*)?(#.*)?$/i.test(url)) {
+      const cleanUrl = url.split('#')[0].split('?')[0];
+      imageUrls.add(cleanUrl);
     }
   }
   
-  // Convert Set back to array
-  return Array.from(imageUrls);
+  return Array.from(imageUrls).filter(url => url.length > 0);
 };
 
 /**
