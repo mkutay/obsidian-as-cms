@@ -1,10 +1,10 @@
 {
-	"id": "obsidian-as-cms",
-	"name": "Obsidian as CMS",
-	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "Upload your notes to your DB and use Obsidian as a hacky CMS.",
-	"author": "Kutay",
-	"authorUrl": "https://www.mkutay.dev",
-	"isDesktopOnly": false
+  "id": "obsidian-as-cms",
+  "name": "Obsidian as CMS",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Upload your notes to your DB and use Obsidian as a hacky CMS.",
+  "author": "Kutay",
+  "authorUrl": "https://www.mkutay.dev",
+  "isDesktopOnly": false
 }

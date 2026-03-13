@@ -14,6 +14,6 @@ export type DBPost = {
 };
 
 export type Post = DBPost & {
-  tags: string[],
-  keywords: string[],
+  tags: string[];
+  keywords: string[];
 };
