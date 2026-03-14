@@ -1,179 +1,112 @@
 # Obsidian as CMS
 
-An Obsidian plugin that allows you to publish your notes as blog posts. I made this so that I can write and publish my blog posts through Obsidian, without the need to write and convert them to MDX files in VS Code or something.
+An Obsidian plugin that publishes the active note to your blog backend and can also unpublish it.
 
-## Features
+## What It Does
 
-- **Publishing**: Upload notes directly
-- **Assets**: Captures linked local images and files and sends them in multipart form data
-- **Frontmatter**: Generic frontmatter support; only optional cover image fields are specially detected (`cover` / `coverImage` variants and `coverSquare` variants)
-- **Unpublish**: Remove content from your app when needed
+- Publishes the active note content to your API.
+- Uploads referenced local assets as multipart file parts.
+- Unpublishes a note using the same slug and content payload model.
+- Uses a bearer token for API authentication.
 
-## Installation
+## Current Reference Resolution (Important)
 
-1. Download the plugin files to your `.obsidian/plugins/obsidian-as-cms/` directory
-2. Enable the plugin in Obsidian settings
-3. Configure your API endpoints and authentication token
+Asset discovery now uses Obsidian's metadata cache directly, not text scanning heuristics.
+
+For the active note, the plugin reads references from:
+
+- `embeds`
+- `links`
+- `frontmatterLinks`
+
+Each reference is resolved with Obsidian's link resolver (`getFirstLinkpathDest`) relative to the current note path. Anchor fragments (`#heading` and block refs) are stripped before resolving.
+
+Only successfully resolved local vault files are uploaded.
+
+## Behavior Details
+
+- Duplicate asset references are uploaded once per publish action.
+- If multiple assets share the same file name, the plugin appends numeric suffixes (for example, `image-2.png`) in the upload payload.
+- Obsidian embed syntax such as `![[image.png|300x200]]` is converted to Markdown image syntax in the content sent to your API.
+- Slug is the active note basename.
+- Publish/unpublish are considered successful only when the API responds with HTTP status `200`.
+
+## Commands and UI
+
+- Ribbon action: Publish to Catter
+- Ribbon action: Unpublish from Catter
+- Command: Publish current note to Catter
+- Command: Unpublish current note from Catter
 
 ## Configuration
 
-Set up your API endpoints in the plugin settings:
-- **Upload URL**: Endpoint for publishing content
-- **Unpublish URL**: Endpoint for removing content
-- **Auth Token**: Bearer token for API authentication
+Set these in plugin settings:
 
-## Usage
+- API Upload URL
+- API Unpublish URL
+- API Auth Token
 
-### Publishing
-- Click the upload cloud icon in the ribbon, or
-- Use the command palette: "Upload current note to DB"
+Default values:
 
-### Unpublishing
-- Click the trash icon in the ribbon, or
-- Use the command palette: "Unpublish current note from DB"
+- Upload URL: `http://localhost:3000/api/upload`
+- Unpublish URL: `http://localhost:3000/api/unpublish`
+- Auth token: `your-auth-token`
 
-## API Implementation Example
+## Required API Routes
 
-Example API endpoints (these are from my own [Next.js blog](https://github.com/mkutay/catter))
+You need two routes.
 
-### Upload Endpoint (`/api/upload`)
+### 1) Upload Route
 
-```typescript
-import { revalidatePath } from "next/cache";
-import { Post } from "@/config/types";
-import { uploadImage } from "@/lib/images";
-import { sql } from "@/lib/postgres";
-import { createPost } from "@/lib/dbContentQueries";
+- Method: `POST`
+- URL: whatever you set in API Upload URL
+- Auth header: `Authorization: Bearer <token>`
+- Content-Type: `multipart/form-data` with boundary
 
-export async function POST(request: Request) {
-  const authHeader = request.headers.get("Authorization");
-  const apiKey = process.env.UPLOAD_API_KEY;
-  
-  if (!apiKey) {
-    return new Response("API key not configured on server", { status: 500 });
-  }
-  
-  if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-  
-  try {
-    const formData = await request.formData();
-    const content = formData.get("content") as string;
-    const slug = formData.get("slug") as string;
-    const images = formData.getAll("images") as File[];
+Form data fields expected:
 
-    // Process images
-    for (const image of images) {
-      const buffer = Buffer.from(await image.arrayBuffer());
-      await uploadImage(image.name, buffer, image.size, image.type);
-    }
+- `content`: string, full note content after Obsidian image syntax normalization
+- `slug`: string, note basename
+- `files`: repeated file parts (0 or more)
 
-    // Create post from content and frontmatter
-    const post = createPost(content, slug);
-    await insertIntoDB({ post });
+For each `files` part:
 
-    // Revalidate relevant pages
-    revalidatePath("/projects");
-    revalidatePath(`/posts/${slug}`);
-    revalidatePath(`/${post.shortened}`);
-    revalidatePath("/tags", "layout");
-    revalidatePath("/posts/page/[id]", "page");
-    
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { "Content-Type": "application/json" }
-    });
-  } catch (error) {
-    console.error("Error uploading:", error);
-    return new Response(JSON.stringify({ error: "Failed to upload" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
-}
-```
+- Form field name: `files`
+- Filename: sent by plugin (may include dedupe suffix)
+- Part `Content-Type`: inferred from file extension or `application/octet-stream`
+- Custom part header: `X-Obsidian-Asset-Path` with original vault path
 
-### Unpublish Endpoint (`/api/unpublish`)
+Success/Failure contract:
 
-```typescript
-import { revalidatePath } from "next/cache";
-import { createPost } from "@/lib/dbContentQueries";
-import { sql } from "@/lib/postgres";
+- Any response with status `200` is treated as success.
+- Any non-`200` response is treated as failure.
 
-export async function POST(request: Request) {
-  const authHeader = request.headers.get("Authorization");
-  const apiKey = process.env.UPLOAD_API_KEY;
-  
-  if (!apiKey) {
-    return new Response("API key not configured on server", { status: 500 });
-  }
-  
-  if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-  
-  try {
-    const body = await request.json();
-    const { content, slug } = body;
+### 2) Unpublish Route
 
-    const post = createPost(content, slug);
-    await deleteFromDB(post.slug);
+- Method: `POST`
+- URL: whatever you set in API Unpublish URL
+- Auth header: `Authorization: Bearer <token>`
+- Content-Type: `application/json`
 
-    // Revalidate relevant pages
-    revalidatePath("/projects");
-    revalidatePath(`/posts/${slug}`);
-    revalidatePath(`/${post.shortened}`);
-    revalidatePath("/tags", "layout");
-    revalidatePath("/posts/page/[id]", "page");
-    
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { "Content-Type": "application/json" }
-    });
-  } catch (error) {
-    console.error("Error unpublishing:", error);
-    return new Response(JSON.stringify({ error: "Failed to unpublish" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
-}
-```
+JSON body expected:
 
-### Helper for completeness's sake
+- `slug`: string, note basename
+- `content`: string, current note content
 
-```typescript
-export function createPost(content: string, slug: string): Post {
-  const { data: frontmatter, content: contentWithoutFrontmatter } = matter(content);
+Success/Failure contract:
 
-  const getStringValue = (value: unknown, defaultValue: string): string => {
-    return typeof value === 'string' ? value : defaultValue;
-  };
+- Any response with status `200` is treated as success.
+- Any non-`200` response is treated as failure.
 
-  const getDateValue = (value: unknown, defaultValue: string) => {
-    if (value instanceof Date) return value.toISOString();
-    if (value) return new Date(value as string).toISOString();
-    return defaultValue;
-  };
-  
-  const getStringArray = (value: unknown): string[] => {
-    return Array.isArray(value) ? value.filter(item => typeof item === 'string') as string[] : [];
-  };
-  
-  return {
-    slug: getStringValue(frontmatter.slug, slug),
-    title: getStringValue(frontmatter.title, slug),
-    content: contentWithoutFrontmatter,
-    description: getStringValue(frontmatter.description, ""),
-    date: getDateValue(frontmatter.date, new Date().toISOString()),
-    excerpt: getStringValue(frontmatter.excerpt, ''),
-    locale: getStringValue(frontmatter.locale, "en_UK"),
-    cover: typeof frontmatter.cover === 'string' ? frontmatter.cover : null,
-    coverSquare: typeof frontmatter.coverSquare === 'string' ? frontmatter.coverSquare : null,
-    lastModified: getDateValue(frontmatter.lastModified, new Date().toISOString()),
-    shortened: getStringValue(frontmatter.shortened, slug),
-    shortExcerpt: getStringValue(frontmatter.shortExcerpt, ''),
-    tags: getStringArray(frontmatter.tags),
-    keywords: getStringArray(frontmatter.keywords)
-  };
-}
-```
+## Installation
+
+1. Build the plugin.
+2. Copy plugin files into `.obsidian/plugins/obsidian-as-cms/`.
+3. Enable the plugin in Obsidian.
+4. Configure API URLs and token.
+
+## Local Development
+
+- `bun run dev` for watch builds
+- `bun run build` for production build
+- `bun run check` for formatting/lint fixes via Biome
