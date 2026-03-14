@@ -82,7 +82,7 @@ function collectAssetReferences(
 ) {
   const references = new Set<string>();
 
-  addCoverReferences(frontmatter, references);
+  addFrontmatterReferences(frontmatter, references);
 
   for (const match of content.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)) {
     const target = match[1]?.trim();
@@ -110,7 +110,7 @@ function collectAssetReferences(
   return Array.from(references).filter(Boolean);
 }
 
-function addCoverReferences(
+function addFrontmatterReferences(
   frontmatter: FrontMatterCache | undefined,
   references: Set<string>,
 ) {
@@ -118,41 +118,24 @@ function addCoverReferences(
     return;
   }
 
-  const cover = getFrontmatterString(frontmatter, [
-    "cover",
-    "coverImage",
-    "cover-image",
-    "cover_image",
-  ]);
-
-  const coverSquare = getFrontmatterString(frontmatter, [
-    "coverSquare",
-    "cover_square",
-    "coverImageSquare",
-    "cover-image-square",
-  ]);
-
-  if (cover) {
-    references.add(cleanReference(cover));
-  }
-
-  if (coverSquare) {
-    references.add(cleanReference(coverSquare));
+  for (const key of Object.keys(frontmatter)) {
+    // Skip Obsidian's internal cache position metadata
+    if (key === "position") continue;
+    collectStringsFromValue(frontmatter[key], references);
   }
 }
 
-function getFrontmatterString(
-  frontmatter: FrontMatterCache,
-  keys: string[],
-): string | null {
-  for (const key of keys) {
-    const value = frontmatter[key];
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim();
+function collectStringsFromValue(value: unknown, references: Set<string>) {
+  if (typeof value === "string") {
+    const cleaned = cleanReference(value);
+    if (cleaned.length > 0) {
+      references.add(cleaned);
+    }
+  } else if (Array.isArray(value)) {
+    for (const item of value) {
+      collectStringsFromValue(item, references);
     }
   }
-
-  return null;
 }
 
 function resolveVaultFile(reference: string, vault: Vault, currentFile: TFile) {
