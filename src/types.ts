@@ -1,19 +1,12 @@
-export type DBPost = {
-  slug: string;
-  content: string;
-  title: string;
-  description: string;
-  date: string;
-  excerpt: string;
-  locale: string;
-  cover: string | null;
-  coverSquare: string | null;
-  lastModified: string;
-  shortened: string;
-  shortExcerpt: string | null;
-};
+export interface CMSSettings {
+  apiUploadUrl: string;
+  apiUnpublishUrl: string;
+  apiAuthToken: string;
+}
 
-export type Post = DBPost & {
-  tags: string[];
-  keywords: string[];
+export type UploadAsset = {
+  fileName: string;
+  path: string;
+  mimeType: string;
+  buffer: ArrayBuffer;
 };

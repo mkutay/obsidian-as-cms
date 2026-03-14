@@ -1,12 +1,7 @@
 import { type App, PluginSettingTab, Setting } from "obsidian";
 
 import type CMSPlugin from "./main";
-
-export interface CMSSettings {
-  apiUploadUrl: string;
-  apiUnpublishUrl: string;
-  apiAuthToken: string;
-}
+import type { CMSSettings } from "./types";
 
 export const DEFAULT_SETTINGS: CMSSettings = {
   apiUploadUrl: "http://localhost:3000/api/upload",

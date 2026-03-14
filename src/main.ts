@@ -1,7 +1,8 @@
 import { MarkdownView, Notice, Plugin } from "obsidian";
+import { publish } from "./lib/publish";
 import { unpublish } from "./lib/unpublish";
-import { upload } from "./lib/upload";
-import { type CMSSettings, CMSSettingTab, DEFAULT_SETTINGS } from "./settings";
+import { CMSSettingTab, DEFAULT_SETTINGS } from "./settings";
+import type { CMSSettings } from "./types";
 
 export default class CMSPlugin extends Plugin {
   settings: CMSSettings;
@@ -9,39 +10,35 @@ export default class CMSPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-    // This creates an icon in the left ribbon for upload
-    const uploadRibbonIconEl = this.addRibbonIcon(
+    const publishRibbonIconEl = this.addRibbonIcon(
       "upload-cloud",
-      "Upload to DB",
+      "Publish to Catter",
       async (_evt: MouseEvent) => {
-        await this.uploadCurrentDocument();
+        await this.publishCurrentDocument();
       },
     );
-    uploadRibbonIconEl.addClass("cms-upload-ribbon-class");
+    publishRibbonIconEl.addClass("cms-publish-ribbon-class");
 
-    // Add a ribbon icon for unpublish
     const unpublishRibbonIconEl = this.addRibbonIcon(
       "trash-2",
-      "Unpublish from DB",
+      "Unpublish from Catter",
       async (_evt: MouseEvent) => {
         await this.unpublishCurrentDocument();
       },
     );
     unpublishRibbonIconEl.addClass("cms-unpublish-ribbon-class");
 
-    // This adds a simple command for upload
     this.addCommand({
-      id: "upload-current-note",
-      name: "Upload current note to DB",
+      id: "publish-current-note",
+      name: "Publish current note to Catter",
       callback: async () => {
-        await this.uploadCurrentDocument();
+        await this.publishCurrentDocument();
       },
     });
 
-    // Add command for unpublish
     this.addCommand({
       id: "unpublish-current-note",
-      name: "Unpublish current note from DB",
+      name: "Unpublish current note from Catter",
       callback: async () => {
         await this.unpublishCurrentDocument();
       },
@@ -61,27 +58,16 @@ export default class CMSPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  async uploadCurrentDocument() {
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!activeView) {
-      new Notice("No active markdown view");
-      return;
-    }
-
-    const file = activeView.file;
-
-    if (!file) {
-      new Notice("No file is open");
-      return;
-    }
+  async publishCurrentDocument() {
+    const file = this.getFile();
+    if (!file) return;
 
     const content = await this.app.vault.read(file);
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
-    // Show processing notice
-    const notice = new Notice("Uploading to CMS...", 0);
+    const notice = new Notice("Publishing...", 0);
 
-    const result = await upload(file, content, this.settings, frontmatter);
+    const result = await publish(file, content, this.settings, frontmatter);
 
     // Remove the processing notice and show the result
     notice.hide();
@@ -89,14 +75,34 @@ export default class CMSPlugin extends Plugin {
     if (result.success) {
       new Notice(result.message);
     } else {
-      new Notice(`Upload failed: ${result.message}`);
+      new Notice(`Publish failed: ${result.message}`);
     }
   }
 
   async unpublishCurrentDocument() {
+    const file = this.getFile();
+    if (!file) return;
+
+    const notice = new Notice("Unpublishing...", 0);
+
+    const content = await this.app.vault.read(file);
+
+    const result = await unpublish(file, this.settings, content);
+
+    // Remove the processing notice and show the result
+    notice.hide();
+
+    if (result.success) {
+      new Notice(result.message);
+    } else {
+      new Notice(`Unpublish failed: ${result.message}`);
+    }
+  }
+
+  getFile() {
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!activeView) {
-      new Notice("No active markdown view");
+      new Notice("No active markdown view.");
       return;
     }
 
@@ -107,26 +113,6 @@ export default class CMSPlugin extends Plugin {
       return;
     }
 
-    try {
-      const notice = new Notice("Unpublishing from DB...", 0);
-
-      const content = await this.app.vault.read(file);
-
-      const result = await unpublish(file, this.settings, content);
-
-      // Remove the processing notice and show the result
-      notice.hide();
-
-      if (result.success) {
-        new Notice(result.message);
-      } else {
-        new Notice(`Unpublish failed: ${result.message}`);
-      }
-    } catch (error) {
-      new Notice(
-        `Error unpublishing: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      console.error("Unpublish error:", error);
-    }
+    return file;
   }
 }

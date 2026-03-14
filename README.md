@@ -5,8 +5,8 @@ An Obsidian plugin that allows you to publish your notes as blog posts. I made t
 ## Features
 
 - **Publishing**: Upload notes directly
-- **Images**: Includes the images in the form data in the request
-- **Frontmatter**: Extracts metadata from YAML frontmatter for images, specifically
+- **Assets**: Captures linked local images and files and sends them in multipart form data
+- **Frontmatter**: Generic frontmatter support; only optional cover image fields are specially detected (`cover` / `coverImage` variants and `coverSquare` variants)
 - **Unpublish**: Remove content from your app when needed
 
 ## Installation

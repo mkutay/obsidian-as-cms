@@ -1,12 +1,9 @@
 import { requestUrl } from "obsidian";
-import type { CMSSettings } from "../settings";
+import type { CMSSettings, UploadAsset } from "src/types";
 
 export async function uploadAPI(
   settings: CMSSettings,
-  images: {
-    fileName: string;
-    buffer: ArrayBuffer;
-  }[],
+  assets: UploadAsset[],
   content: string,
   slug: string,
 ) {
@@ -29,22 +26,19 @@ export async function uploadAPI(
   );
   parts.push(slugHeader);
 
-  for (const image of images) {
-    // const name = encodeURIComponent(image.fileName);
-    const name = image.fileName;
+  for (const asset of assets) {
+    const name = asset.fileName;
 
-    // Image header
     const imageHeader = textEncoder.encode(
       `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="images"; filename="${name}"\r\n` +
-        `Content-Type: application/octet-stream\r\n\r\n`,
+        `Content-Disposition: form-data; name="files"; filename="${name}"\r\n` +
+        `Content-Type: ${asset.mimeType}\r\n` +
+        `X-Obsidian-Asset-Path: ${asset.path}\r\n\r\n`,
     );
     parts.push(imageHeader);
 
-    // Image data
-    parts.push(new Uint8Array(image.buffer));
+    parts.push(new Uint8Array(asset.buffer));
 
-    // Line break after image
     const lineBreak = textEncoder.encode("\r\n");
     parts.push(lineBreak);
   }

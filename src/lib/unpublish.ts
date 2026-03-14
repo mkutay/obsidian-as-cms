@@ -1,6 +1,5 @@
 import type { TFile } from "obsidian";
-
-import type { CMSSettings } from "../settings";
+import type { CMSSettings } from "src/types";
 import { unpublishAPI } from "./api";
 
 export async function unpublish(
