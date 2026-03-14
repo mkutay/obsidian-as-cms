@@ -63,11 +63,15 @@ export default class CMSPlugin extends Plugin {
     if (!file) return;
 
     const content = await this.app.vault.read(file);
-    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
     const notice = new Notice("Publishing...", 0);
 
-    const result = await publish(file, content, this.settings, frontmatter);
+    const result = await publish(
+      file,
+      content,
+      this.settings,
+      this.app.metadataCache,
+    );
 
     // Remove the processing notice and show the result
     notice.hide();
